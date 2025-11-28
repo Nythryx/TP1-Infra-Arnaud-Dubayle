@@ -1,7 +1,12 @@
 # TP2-Infra-Arnaud-Dubayle
 
 # Script Terraform pour créer l'infrastructure globale 
-### cript à copier/coller dans le cloudshell de AWS
+### Script à copier/coller dans le cloudshell de AWS
+
+- Console AWS en anglais (US)
+- Région : ca-central-1 (Canada)
+- x=10
+- Tous les noms utilisant TRI deviennent ARN_
 
 ```bash
 #!/bin/bash
