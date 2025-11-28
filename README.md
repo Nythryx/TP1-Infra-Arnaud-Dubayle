@@ -2,7 +2,7 @@
 
 # Partie 1 : Création d'un Load Balancer (LB)
 
-## 1️ Créer un Target Group
+## 1 Créer un Target Group
 
 1. Connexion à la console AWS.
 2. EC2 → Target Groups
@@ -16,7 +16,7 @@
 5. Cliquer sur **Next**
 6. Cliquer sur Create target group
 
-## 2️ Créer un Load Balancer
+## 2 Créer un Load Balancer
 
 1. Aller dans **EC2 → Load Balancers**
 2. Cliquer sur **Create Load Balancer → Application Load Balancer**
@@ -30,7 +30,7 @@
 6. Dans **Target Group**, choisr **Existing target group** et sélectionner `ARD_TargetGroup`
 8. Cliquer sur **Create Load Balancer**
 
-## 3️ Créer un Security Group pour le LB
+## 3 Créer un Security Group pour le LB
 
 1. Aller dans **EC2 → Security Groups**
 2. Cliquer sur **Create Security Group**
@@ -46,7 +46,7 @@
    * Source : **My IP** (AWS détecte IP publique automatiquement)
 5. Cliquer sur **Create security group**
 
-## 4️ Appliquer le Security Group sur le Load Balancer
+## 4 Appliquer le Security Group sur le Load Balancer
 
 1. Retourner dans **EC2 → Load Balancers**
 2. Sélectionner `ARD_LoadBalancer`
@@ -57,7 +57,7 @@
 
 # Partie 2 : Création d’une Amazon Machine Image (AMI)
 
-## 1️ Lancer une instance EC2 de base
+## 1 Lancer une instance EC2 de base
 1.  Connectez-vous à la console AWS
 2.  Aller dans **EC2 → Instances → Launch instances**
 3.  Paramètres :   
@@ -85,7 +85,7 @@
     ```
     
 
-## 3️ Créer un script pour récupérer et afficher les métadonnées
+## 3 Créer un script pour récupérer et afficher les métadonnées
 
 1.  Création du script shell :
     ```bash
@@ -107,7 +107,7 @@
     ```
     
 
-## 4️ Automatiser l'exécution du script au démarrage
+## 4 Automatiser l'exécution du script au démarrage
 
 1.  Éditer le crontab root :
     ```bash
@@ -121,7 +121,7 @@
 3.  Sauvegarder et quitter
     
 
-## 5️ Créer une AMI personnalisée
+## 5 Créer une AMI personnalisée
 
 1.  Retourner dans **EC2 → Instances**
 2.  Sélectionner l'instance configurée  
@@ -134,7 +134,7 @@
 
 # Partie 3 : Création de la première instance EC2 et configuration des security groups
 
-## 1️ Créer un Security Group
+## 1 Créer un Security Group
 
 1. Aller dans **EC2 → Security Groups → Create Security Group**
 2. Paramètres :
@@ -147,7 +147,7 @@
 
 4. Ajouter votre instance créée précédemment à ce Security Group
 
-## 2️ Créer une instance EC2
+## 2 Créer une instance EC2
 
 1. Aller dans **EC2 → Instances → Launch Instances**
 
@@ -159,7 +159,7 @@
 
 3. Lancer l’instance
 
-## 3️ Vérification de l’accès au serveur web
+## 3 Vérification de l’accès au serveur web
 
 1. Utiliser l’adresse du Load Balancer dans un navigateur pour accéder au serveur web et aux métadonnées de l’instance EC2
 
@@ -171,7 +171,7 @@
 
 # Partie 4 : Installation de l'AWS CLI et ajout d’une seconde instance
 
-## 1️ Installer et configurer l’AWS CLI sur un ordinateur
+## 1 Installer et configurer l’AWS CLI sur un ordinateur
 
 1.  Télécharger et installer l’AWS CLI en suivant la documentation officielle
     -   [https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
@@ -188,7 +188,7 @@
     -   Default output format
         
 
-## 2️ Créer une seconde instance EC2 avec l’AWS CLI
+## 2 Créer une seconde instance EC2 avec l’AWS CLI
 
 1.  Lancer une instance similaire à la première en utilisant l’AMI personnalisée
     
@@ -206,7 +206,7 @@
     3.  Noter l’Instance ID retourné par la commande
     
 
-## 3️ Ajouter cette instance au Target Group via l’AWS CLI
+## 3 Ajouter cette instance au Target Group via l’AWS CLI
 
 1.  Récupérer l’ARN du Target Group `ARN_TargetGroup`
     ```bash
@@ -221,7 +221,7 @@
     ```
     
 
-## 4️ Vérification via le Load Balancer
+## 4 Vérification via le Load Balancer
 
 1.  Ouvrir l’adresse du Load Balancer dans un navigateur
 2.  Rafraîchir plusieurs fois la page pour vérifier que le Load Balancer distribue bien le trafic entre les deux instances
