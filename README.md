@@ -1,229 +1,175 @@
-# TP1-Infra-Arnaud-Dubayle
+# TP2-Infra-Arnaud-Dubayle
 
-# Partie 1 : Création d'un Load Balancer (LB)
+# Script Terraform pour créer l'infrastructure globale 
+### cript à copier/coller dans le cloudshell de AWS
 
-## 1 Créer un Target Group
+```bash
+#!/bin/bash
+set -e
 
-1. Connexion à la console AWS.
-2. EC2 → Target Groups
-3. Cliquer sur Create target group
-4. Paramètres :
-   * **Target type** : `Instances`
-   * **Name** : `ARD_TargetGroup`
-   * **Protocol** : `HTTP`
-   * **Port** : `80`
-   * **VPC** : sélectionne le VPC où sont tes instances EC2
-5. Cliquer sur **Next**
-6. Cliquer sur Create target group
+echo "=== VARIABLES ==="
 
-## 2 Créer un Load Balancer
+TRI="ARN"
+X=10
+VPC1_CIDR="10.${X}.0.0/16"
+VPC1_PUBLIC_CIDR="10.${X}.1.0/24"
+VPC1_PRIVATE_CIDR="10.${X}.2.0/24"
 
-1. Aller dans **EC2 → Load Balancers**
-2. Cliquer sur **Create Load Balancer → Application Load Balancer**
-3. Paramètres :
+VPC2_CIDR="10.$((100+X)).0.0/16"
+VPC2_PUBLIC_CIDR="10.$((100+X)).1.0/24"
+VPC2_PRIVATE_CIDR="10.$((100+X)).2.0/24"
 
-   * **Name** : `ARD_LoadBalancer`
-   * **Scheme** : `internet-facing`
-   * **IP address type** : `IPv4`
-4. **Listeners** : laisser par défaut `HTTP 80`
-5. **Availability Zones** : sélectionner au moins 2 subnets
-6. Dans **Target Group**, choisr **Existing target group** et sélectionner `ARD_TargetGroup`
-8. Cliquer sur **Create Load Balancer**
+AMI_HTTPD="ami-0c02fb55956c7d316"   # Amazon Linux 2023 + HTTPD (exemple)
+AMI_BASIC="ami-0c02fb55956c7d316"
 
-## 3 Créer un Security Group pour le LB
+KEYNAME="${TRI}_Key"
 
-1. Aller dans **EC2 → Security Groups**
-2. Cliquer sur **Create Security Group**
-3. Paramètres :
+echo "=== CREATION KEYPAIR ==="
+aws ec2 create-key-pair --key-name "$KEYNAME" \
+    --query "KeyMaterial" --output text > ${KEYNAME}.pem
+chmod 400 ${KEYNAME}.pem
 
-   * **Name** : `ARD_SecurityGroup_LB`
-   * **VPC** : même VPC que le LB
-4. Dans **Inbound rules** :
+echo "=== CREATION VPC 1 ==="
+VPC1=$(aws ec2 create-vpc --cidr-block $VPC1_CIDR --query "Vpc.VpcId" --output text)
+aws ec2 create-tags --resources $VPC1 --tags Key=Name,Value=${TRI}_VPC1
 
-   * Type : `HTTP`
-   * Protocol : `TCP`
-   * Port : `80`
-   * Source : **My IP** (AWS détecte IP publique automatiquement)
-5. Cliquer sur **Create security group**
-
-## 4 Appliquer le Security Group sur le Load Balancer
-
-1. Retourner dans **EC2 → Load Balancers**
-2. Sélectionner `ARD_LoadBalancer`
-3. Cliquer sur **Actions → Edit security groups**
-4. Cocher `ARD_SecurityGroup_LB`
-5. Sauvegarder
+echo "=== CREATION VPC 2 ==="
+VPC2=$(aws ec2 create-vpc --cidr-block $VPC2_CIDR --query "Vpc.VpcId" --output text)
+aws ec2 create-tags --resources $VPC2 --tags Key=Name,Value=${TRI}_VPC2
 
 
-# Partie 2 : Création d’une Amazon Machine Image (AMI)
+echo "=== CREATION SUBNETS POUR VPC1 ==="
+PUB1=$(aws ec2 create-subnet --vpc-id $VPC1 --cidr-block $VPC1_PUBLIC_CIDR --query "Subnet.SubnetId" --output text)
+aws ec2 create-tags --resources $PUB1 --tags Key=Name,Value=${TRI}_VPC1_Public
 
-## 1 Lancer une instance EC2 de base
-1.  Connectez-vous à la console AWS
-2.  Aller dans **EC2 → Instances → Launch instances**
-3.  Paramètres :   
-    -   **AMI** : Amazon Linux 2  
-    -   **Instance type** : t2.micro (ou selon besoin)  
-    -   **Key Pair** : sélectionner une clé existante ou en créer une nouvelle pour SSH 
-    -   **Network & Subnet** : choisir le VPC et subnet appropriés  
-    -   **Security Group** : autoriser SSH et HTTP (port 22 et 80)   
-4.  Lancer l’instance.
-    
-
-## 2 Installer un serveur web
-
-1.  Se connecter à l’instance via SSH :
-    ```bash
-    ssh -i votre_cle.pem ec2-user@IP_de_l_instance
-    ```
-    
-2.  Installer Apache HTTP Server :
-    ```bash
-    sudo yum update -y
-    sudo yum install -y httpd
-    sudo systemctl start httpd
-    sudo systemctl enable httpd
-    ```
-    
-
-## 3 Créer un script pour récupérer et afficher les métadonnées
-
-1.  Création du script shell :
-    ```bash
-    sudo nano /var/www/html/metadata.sh
-    ```
-
-2.  Contenu du script :
-    ```bash
-    #!/bin/bash
-    TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" \
-      -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-    curl -H "X-aws-ec2-metadata-token: $TOKEN" \
-      http://169.254.169.254/latest/meta-data/instance-id > /var/www/html/index.html
-    ```
-    
-3.  Commande pour rendre le script exécutable :
-    ```bash
-    sudo chmod +x /var/www/html/metadata.sh
-    ```
-    
-
-## 4 Automatiser l'exécution du script au démarrage
-
-1.  Éditer le crontab root :
-    ```bash
-    sudo crontab -e
-    ```
-    
-2.  Ajouter la ligne suivante :
-    ```bash
-    @reboot /var/www/html/metadata.sh
-    ```
-3.  Sauvegarder et quitter
-    
-
-## 5 Créer une AMI personnalisée
-
-1.  Retourner dans **EC2 → Instances**
-2.  Sélectionner l'instance configurée  
-3.  Cliquer sur **Actions → Image and templates → Create image**   
-4.  Paramètres :
-    -   **Image name** : nom de l’AMI personnalisé
-    -   **Image description** : description facultative
-5.  Cliquer sur **Create Image**
+PRIV1=$(aws ec2 create-subnet --vpc-id $VPC1 --cidr-block $VPC1_PRIVATE_CIDR --query "Subnet.SubnetId" --output text)
+aws ec2 create-tags --resources $PRIV1 --tags Key=Name,Value=${TRI}_VPC1_Private
 
 
-# Partie 3 : Création de la première instance EC2 et configuration des security groups
+echo "=== CREATION SUBNETS POUR VPC2 ==="
+PUB2=$(aws ec2 create-subnet --vpc-id $VPC2 --cidr-block $VPC2_PUBLIC_CIDR --query "Subnet.SubnetId" --output text)
+aws ec2 create-tags --resources $PUB2 --tags Key=Name,Value=${TRI}_VPC2_Public
 
-## 1 Créer un Security Group
-
-1. Aller dans **EC2 → Security Groups → Create Security Group**
-2. Paramètres :
-   * **Name** : `ARD_SecurityGroup_EC2`
-   * **VPC** : choisir le VPC approprié
-
-3. Ajouter les règles suivantes :
-   * **SSH (port 22)** : autoriser l'accès depuis votre adresse IP publique ([https://ifconfig.me](https://ifconfig.me) pour connaître l’IP)
-   * **HTTP (port 80)** : autoriser uniquement le trafic provenant du security group du load balancer
-
-4. Ajouter votre instance créée précédemment à ce Security Group
-
-## 2 Créer une instance EC2
-
-1. Aller dans **EC2 → Instances → Launch Instances**
-
-2. Paramètres :
-   * **Name** : `ARD_Instance1`
-   * **AMI** : choisir l’AMI personnalisée créée précédemment
-   * **Instance type** : `t2.micro`
-   * **Security Group** : sélectionner `ARD_SecurityGroup_EC2`
-
-3. Lancer l’instance
-
-## 3 Vérification de l’accès au serveur web
-
-1. Utiliser l’adresse du Load Balancer dans un navigateur pour accéder au serveur web et aux métadonnées de l’instance EC2
-
-💡 Astuce : si le serveur web n’est pas accessible via le Load Balancer, procéder par étapes :
-
-* Accéder directement à l’instance via votre navigateur (en s’assurant que le port 80 est accessible depuis votre IP)
-* Modifier les règles de sécurité pour permettre l’accès via le Load Balancer et tester à nouveau
+PRIV2=$(aws ec2 create-subnet --vpc-id $VPC2 --cidr-block $VPC2_PRIVATE_CIDR --query "Subnet.SubnetId" --output text)
+aws ec2 create-tags --resources $PRIV2 --tags Key=Name,Value=${TRI}_VPC2_Private
 
 
-# Partie 4 : Installation de l'AWS CLI et ajout d’une seconde instance
+echo "=== INTERNET GATEWAYS ==="
+IGW1=$(aws ec2 create-internet-gateway --query "InternetGateway.InternetGatewayId" --output text)
+aws ec2 attach-internet-gateway --internet-gateway-id $IGW1 --vpc-id $VPC1
+aws ec2 create-tags --resources $IGW1 --tags Key=Name,Value=${TRI}_IGW1
 
-## 1 Installer et configurer l’AWS CLI sur un ordinateur
+IGW2=$(aws ec2 create-internet-gateway --query "InternetGateway.InternetGatewayId" --output text)
+aws ec2 attach-internet-gateway --internet-gateway-id $IGW2 --vpc-id $VPC2
+aws ec2 create-tags --resources $IGW2 --tags Key=Name,Value=${TRI}_IGW2
 
-1.  Télécharger et installer l’AWS CLI en suivant la documentation officielle
-    -   [https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
-        
-2.  Configurer l’AWS CLI avec les identifiants IAM fournis
-    ```bash
-    aws configure
-    ```
-    
-3.  Renseigner les informations demandées :
-    -   AWS Access Key ID
-    -   AWS Secret Access Key
-    -   Default region name
-    -   Default output format
-        
 
-## 2 Créer une seconde instance EC2 avec l’AWS CLI
+echo "=== ROUTE TABLES ==="
 
-1.  Lancer une instance similaire à la première en utilisant l’AMI personnalisée
-    
-2.  Exemple de commande :
-    ```bash
-    aws ec2 run-instances \
-      --image-id <ID_AMI_PERSONNALIEE> \
-      --count 1 \
-      --instance-type t2.micro \
-      --security-group-ids <ID_ARN_SecurityGroup_EC2> \
-      --subnet-id <ID_SUBNET> \
-      --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=TRI_Instance2}]'
-    ```
-    
-    3.  Noter l’Instance ID retourné par la commande
-    
+# VPC1
+RTB1=$(aws ec2 create-route-table --vpc-id $VPC1 --query "RouteTable.RouteTableId" --output text)
+aws ec2 create-tags --resources $RTB1 --tags Key=Name,Value=${TRI}_RT_Public1
+aws ec2 associate-route-table --subnet-id $PUB1 --route-table-id $RTB1
+aws ec2 create-route --route-table-id $RTB1 --destination-cidr-block 0.0.0.0/0 --gateway-id $IGW1
 
-## 3 Ajouter cette instance au Target Group via l’AWS CLI
+# VPC2
+RTB2=$(aws ec2 create-route-table --vpc-id $VPC2 --query "RouteTable.RouteTableId" --output text)
+aws ec2 create-tags --resources $RTB2 --tags Key=Name,Value=${TRI}_RT_Public2
+aws ec2 associate-route-table --subnet-id $PUB2 --route-table-id $RTB2
+aws ec2 create-route --route-table-id $RTB2 --destination-cidr-block 0.0.0.0/0 --gateway-id $IGW2
 
-1.  Récupérer l’ARN du Target Group `ARN_TargetGroup`
-    ```bash
-    aws elbv2 describe-target-groups
-    ```
-    
-2.  Ajouter la nouvelle instance au Target Group
-    ```bash
-    aws elbv2 register-targets \
-      --target-group-arn <ARN_TARGET_GROUP> \
-      --targets Id=<INSTANCE_ID_INSTANCE2>,Port=80
-    ```
-    
 
-## 4 Vérification via le Load Balancer
+echo "=== SECURITY GROUPS ==="
 
-1.  Ouvrir l’adresse du Load Balancer dans un navigateur
-2.  Rafraîchir plusieurs fois la page pour vérifier que le Load Balancer distribue bien le trafic entre les deux instances
-3.  Si nécessaire, vider le cache du navigateur ou utiliser le mode navigation privée
+# Bastions = SSH public
+SG_BASTION1=$(aws ec2 create-security-group --group-name ${TRI}_SG_Bastion1 --description "Bastion1" --vpc-id $VPC1 --query "GroupId" --output text)
+aws ec2 authorize-security-group-ingress --group-id $SG_BASTION1 --protocol tcp --port 22 --cidr 0.0.0.0/0
+
+SG_BASTION2=$(aws ec2 create-security-group --group-name ${TRI}_SG_Bastion2 --description "Bastion2" --vpc-id $VPC2 --query "GroupId" --output text)
+aws ec2 authorize-security-group-ingress --group-id $SG_BASTION2 --protocol tcp --port 22 --cidr 0.0.0.0/0
+
+# Private = HTTP ONLY (modifié après peering)
+SG_PRIV1=$(aws ec2 create-security-group --group-name ${TRI}_SG_Priv1 --description "Priv1" --vpc-id $VPC1 --query "GroupId" --output text)
+SG_PRIV2=$(aws ec2 create-security-group --group-name ${TRI}_SG_Priv2 --description "Priv2" --vpc-id $VPC2 --query "GroupId" --output text)
+
+
+echo "=== INSTANCES ==="
+
+echo "--- Bastion VPC1 ---"
+BASTION1=$(aws ec2 run-instances \
+    --image-id $AMI_BASIC \
+    --instance-type t2.micro \
+    --key-name $KEYNAME \
+    --security-group-ids $SG_BASTION1 \
+    --subnet-id $PUB1 \
+    --associate-public-ip-address \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${TRI}_BastionVPC1}]" \
+    --query "Instances[0].InstanceId" --output text)
+
+echo "--- Bastion VPC2 ---"
+BASTION2=$(aws ec2 run-instances \
+    --image-id $AMI_BASIC \
+    --instance-type t2.micro \
+    --key-name $KEYNAME \
+    --security-group-ids $SG_BASTION2 \
+    --subnet-id $PUB2 \
+    --associate-public-ip-address \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${TRI}_BastionVPC2}]" \
+    --query "Instances[0].InstanceId" --output text)
+
+echo "--- Private VPC1 ---"
+PRIVINST1=$(aws ec2 run-instances \
+    --image-id $AMI_HTTPD \
+    --instance-type t2.micro \
+    --key-name $KEYNAME \
+    --security-group-ids $SG_PRIV1 \
+    --subnet-id $PRIV1 \
+    --no-associate-public-ip-address \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${TRI}_InstanceVPC1}]" \
+    --query "Instances[0].InstanceId" --output text)
+
+echo "--- Private VPC2 ---"
+PRIVINST2=$(aws ec2 run-instances \
+    --image-id $AMI_HTTPD \
+    --instance-type t2.micro \
+    --key-name $KEYNAME \
+    --security-group-ids $SG_PRIV2 \
+    --subnet-id $PRIV2 \
+    --no-associate-public-ip-address \
+    --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${TRI}_InstanceVPC2}]" \
+    --query "Instances[0].InstanceId" --output text)
+
+
+echo "=== PEERING ==="
+PEER=$(aws ec2 create-vpc-peering-connection \
+    --vpc-id $VPC1 --peer-vpc-id $VPC2 \
+    --query "VpcPeeringConnection.VpcPeeringConnectionId" \
+    --output text)
+
+aws ec2 accept-vpc-peering-connection --vpc-peering-connection-id $PEER
+
+# ajout routes
+aws ec2 create-route --route-table-id $RTB1 --destination-cidr-block $VPC2_CIDR --vpc-peering-connection-id $PEER
+aws ec2 create-route --route-table-id $RTB2 --destination-cidr-block $VPC1_CIDR --vpc-peering-connection-id $PEER
+
+
+echo "=== HTTP RULES ==="
+aws ec2 authorize-security-group-ingress --group-id $SG_PRIV1 --protocol tcp --port 80 --cidr $VPC2_CIDR
+aws ec2 authorize-security-group-ingress --group-id $SG_PRIV2 --protocol tcp --port 80 --cidr $VPC1_CIDR
+
+
+echo "=== FIN ==="
+
+echo "BASTION 1 PUBLIC IP:"
+aws ec2 describe-instances --instance-ids $BASTION1 --query "Reservations[0].Instances[0].PublicIpAddress" --output text
+
+echo "BASTION 2 PUBLIC IP:"
+aws ec2 describe-instances --instance-ids $BASTION2 --query "Reservations[0].Instances[0].PublicIpAddress" --output text
+
+echo "INSTANCE PRIVEE 1 PRIVATE IP:"
+aws ec2 describe-instances --instance-ids $PRIVINST1 --query "Reservations[0].Instances[0].PrivateIpAddress" --output text
+
+echo "INSTANCE PRIVEE 2 PRIVATE IP:"
+aws ec2 describe-instances --instance-ids $PRIVINST2 --query "Reservations[0].Instances[0].PrivateIpAddress" --output text
+```
 
