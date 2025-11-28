@@ -1,7 +1,7 @@
 # TP3-Infra-Arnaud-Dubayle
 
 # Script Terraform pour créer l'infrastructure globale 
-### Script à copier/coller dans le cloudshell de AWS (ou AWS Lab)
+### Script à copier/coller dans le cloudshell de AWS (ou AWS Lab) ou à coller dans un terminale connecter en SSH a AWS
 
 ```Bash
 ###########################################
